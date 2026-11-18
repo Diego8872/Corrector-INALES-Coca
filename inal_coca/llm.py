@@ -90,7 +90,7 @@ class Groq(Proveedor):
         """Llama al modelo; si rechaza algún parámetro opcional (400), lo quita y reintenta."""
         extra = {}
         if modelo.startswith("openai/gpt-oss"):
-            extra["reasoning_effort"] = "low"
+            extra["reasoning_effort"] = "medium"
         elif modelo.startswith("qwen/"):
             extra["reasoning_effort"] = "none"
         base = {"model": modelo, "messages": mensajes, "temperature": 0, "max_completion_tokens": 4000}
