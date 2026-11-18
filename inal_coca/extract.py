@@ -1,4 +1,6 @@
 """Prompts y extracción de datos de cada documento de soporte."""
+import re
+
 from .llm import Proveedor
 from .readers import MAX_CHARS, Doc
 
@@ -43,12 +45,34 @@ PROMPTS = {
 }
 
 
+# Un CRT numera con el código del país de emisión: 085TERRA/CH2026 -> Chile
+_PAIS_CRT = {"AR": "Argentina", "BO": "Bolivia", "BR": "Brasil", "CH": "Chile", "PY": "Paraguay", "PE": "Perú", "UY": "Uruguay"}
+_NUM_CRT = re.compile(r"\b([A-Z0-9]{2,}[A-Z0-9/\-]*?/(" + "|".join(_PAIS_CRT) + r")\d{2,4})\b")
+
+
+def _respaldo_crt(datos: dict, texto: str) -> None:
+    """Si la IA no encontró el número o el país de un CRT, se sacan del número (sufijo con código de país)."""
+    if not re.search(r"(?i)carta\s+de\s+porte|\bCRT\b", texto):
+        return
+    m = _NUM_CRT.search(texto)
+    if not m:
+        return
+    if not datos.get("transport_doc_number"):
+        datos["transport_doc_number"] = m.group(1)
+        datos["_respaldo"] = "número del CRT tomado por patrón"
+    if not datos.get("procedencia_pais"):
+        datos["procedencia_pais"] = _PAIS_CRT[m.group(2)]
+        datos["procedencia_evidencia"] = f"sufijo {m.group(2)} del número {m.group(1)}"
+
+
 def extraer(clave: str, doc: Doc, proveedor: Proveedor) -> dict:
     """Extrae los datos del documento. Usa texto si el PDF lo tiene y visión si es un escaneo."""
     if doc.scanned:
         datos = proveedor.extraer_json(PROMPTS[clave], imagenes=doc.images)
     else:
         datos = proveedor.extraer_json(PROMPTS[clave], contenido=doc.text[:MAX_CHARS])
+    if clave == "transporte" and not doc.scanned:
+        _respaldo_crt(datos, doc.text)
     datos["_metodo"] = doc.metodo
     datos["_modelo"] = getattr(proveedor, "ultimo_modelo", None)
     return datos
