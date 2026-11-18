@@ -25,8 +25,31 @@ class Doc:
         return "visión (escaneado)" if self.scanned else "texto"
 
 
-def _limpiar(t: str) -> str:
-    return re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n", t)).strip()
+def _limpiar(t: str, colapsar: bool = True) -> str:
+    t = re.sub(r"\n\s*\n+", "\n", t)
+    return (re.sub(r"[ \t]+", " ", t) if colapsar else t).strip()
+
+
+def _texto_posicional(page, tol: float = 3.0, hueco: float = 14.0) -> str:
+    """Texto como se ve en la hoja: las palabras de una misma altura quedan en la misma línea
+    (columnas separadas por 3 espacios). Evita que en formularios (CRT, BL) el dato quede lejos de su casillero."""
+    palabras = sorted(page.get_text("words"), key=lambda w: (w[1] + w[3]) / 2)
+    lineas = []
+    for w in palabras:
+        yc = (w[1] + w[3]) / 2
+        if lineas and abs(lineas[-1][0] - yc) <= tol:
+            lineas[-1][1].append(w)
+            lineas[-1][0] = (lineas[-1][0] + yc) / 2
+        else:
+            lineas.append([yc, [w]])
+    out = []
+    for _, l in lineas:
+        l.sort(key=lambda w: w[0])
+        txt = l[0][4]
+        for a, b in zip(l, l[1:]):
+            txt += ("   " if b[0] - a[2] > hueco else " ") + b[4]
+        out.append(txt)
+    return "\n".join(out)
 
 
 def _sin_copias(pages: list) -> list:
@@ -49,9 +72,10 @@ def _sin_legales(pages: list) -> list:
     return utiles or pages
 
 
-def read_pdf(data: bytes) -> Doc:
+def read_pdf(data: bytes, posicional: bool = False) -> Doc:
+    """posicional=True: texto respetando la posición en la hoja (para la IA). False: texto plano (para el PD)."""
     pdf = fitz.open(stream=data, filetype="pdf")
-    pages = [_limpiar(p.get_text("text")) for p in pdf]
+    pages = [_limpiar(_texto_posicional(p), colapsar=False) if posicional else _limpiar(p.get_text("text")) for p in pdf]
     if sum(len(p) for p in pages) >= _MIN_CHARS_TEXTO:
         return Doc(pages=_sin_copias(_sin_legales(pages)))
     # escaneo: se renderizan las páginas para que las lea el modelo de visión
