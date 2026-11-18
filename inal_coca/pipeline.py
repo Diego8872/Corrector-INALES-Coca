@@ -19,7 +19,7 @@ def _no_aparecen(datos: dict, texto: str, claves: list) -> list:
 
 def _leer(clave: str, data: bytes, proveedor):
     """Lee y extrae un documento. Devuelve (datos, texto, método). Un fallo no frena el resto del control."""
-    doc = read_pdf(data)
+    doc = read_pdf(data, posicional=True)
     datos = extraer(clave, doc, proveedor)
     if not doc.scanned:
         datos["_no_encontrado"] = _no_aparecen(datos, doc.text, _IDS[clave])
