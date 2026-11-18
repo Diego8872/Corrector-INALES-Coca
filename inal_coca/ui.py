@@ -27,6 +27,33 @@ def _api_key() -> str:
         return os.environ.get("GROQ_API_KEY", "")
 
 
+def _secret(nombre: str) -> str:
+    try:
+        return str(st.secrets.get(nombre, "") or "")
+    except Exception:
+        return os.environ.get(nombre, "")
+
+
+def _proveedor():
+    return get_proveedor("groq", _api_key(), modelo_texto=_secret("GROQ_MODEL_TEXT"),
+                         modelo_vision=_secret("GROQ_MODEL_VISION"))
+
+
+def _diagnostico():
+    """Muestra qué modelos tiene disponibles la cuenta de Groq y prueba una llamada mínima."""
+    with st.sidebar.expander("🔧 Diagnóstico de IA"):
+        if st.button("Probar conexión con Groq"):
+            try:
+                p = _proveedor()
+                disp = p.disponibles()
+                st.write("Modelos disponibles:", ", ".join(disp) if disp else "no se pudo listar")
+                st.write("Texto → se usaría:", p.candidatos(False)[0], "| Visión →", p.candidatos(True)[0])
+                r = p.extraer_json('Devolvé {"ok": true}', "prueba")
+                st.success(f"Respuesta OK de {p.ultimo_modelo}: {r}")
+            except Exception as e:
+                st.error(str(e))
+
+
 def render():
     st.title("🧾 Corrector INAL – Coca-Cola")
     st.caption("Controla el PD de INAL contra factura, BL/guía/CRT, COA, packing list y listado de importación.")
@@ -39,6 +66,7 @@ def render():
         with (c1 if i % 2 == 0 else c2):
             archivos[clave] = st.file_uploader(etiqueta, type=ext, key=f"inal_{clave}", accept_multiple_files=varios)
 
+    _diagnostico()
     if not _api_key():
         st.error("Falta GROQ_API_KEY en los Secrets de Streamlit.")
     faltan_obl = [e for (c, e, _, obl, _) in _CAMPOS if obl and not archivos[c]]
@@ -56,7 +84,7 @@ def render():
             elif f is not None:
                 datos[c] = f.getvalue()
         try:
-            proveedor = get_proveedor("groq", _api_key())
+            proveedor = _proveedor()
             with st.status("Controlando…", expanded=False) as estado:
                 res = validar(tipo, datos, proveedor, progreso=lambda msg: estado.update(label=msg))
                 estado.update(label="Listo", state="complete")
