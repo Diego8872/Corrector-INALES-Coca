@@ -50,6 +50,7 @@ def extraer(clave: str, doc: Doc, proveedor: Proveedor) -> dict:
     else:
         datos = proveedor.extraer_json(PROMPTS[clave], contenido=doc.text[:MAX_CHARS])
     datos["_metodo"] = doc.metodo
+    datos["_modelo"] = getattr(proveedor, "ultimo_modelo", None)
     return datos
 
 
