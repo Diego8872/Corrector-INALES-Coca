@@ -58,7 +58,7 @@ def render():
         try:
             proveedor = get_proveedor("groq", _api_key())
             with st.status("Controlando…", expanded=False) as estado:
-                res = validar(tipo, datos, proveedor, progreso=estado.update)
+                res = validar(tipo, datos, proveedor, progreso=lambda msg: estado.update(label=msg))
                 estado.update(label="Listo", state="complete")
             st.session_state["inal_res"] = res
         except Exception as e:
